@@ -25,6 +25,11 @@ from PyQt5.QtWidgets import (
     QSystemTrayIcon,
 )
 
+# Está en la misma carpeta (APP_DIR); se agrega al principio del import
+# porque necesitamos APP_DIR antes de poder importarlo normalmente.
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from setup_wizard import SetupWizard, is_autostart_enabled, set_autostart_enabled  # noqa: E402
+
 
 # ---------- RUTAS ----------
 # Carpeta donde está instalado este archivo (funciona aunque se llame por symlink)
@@ -39,6 +44,7 @@ STATUS_FILE = os.path.join(CFG_DIR, "box-status")
 INTERVAL_FILE = os.path.join(CFG_DIR, "box-interval")
 PAUSE_FILE = os.path.join(CFG_DIR, "box-paused")
 LOG_DIR = os.path.expanduser("~/.local/state/box-tray/logs")
+AUTOSTART_DIR = os.path.expanduser("~/.config/autostart")
 
 BOX_WEB = "https://app.box.com"
 
@@ -224,6 +230,14 @@ class BoxTray:
         self.pause_action.triggered.connect(self.toggle_pause)
         menu.addAction(self.pause_action)
 
+        # Inicio automático al iniciar sesión en el sistema
+        self.autostart_action = QAction(
+            "Iniciar automáticamente al iniciar sesión", self.app, checkable=True
+        )
+        self.autostart_action.setChecked(is_autostart_enabled(AUTOSTART_DIR))
+        self.autostart_action.triggered.connect(self.toggle_autostart)
+        menu.addAction(self.autostart_action)
+
         menu.addSeparator()
         menu.addAction("Volver a iniciar sesión en Box", self.reconnect)
 
@@ -330,6 +344,9 @@ class BoxTray:
 
         self.update_status()
 
+    def toggle_autostart(self):
+        set_autostart_enabled(APP_DIR, AUTOSTART_DIR, self.autostart_action.isChecked())
+
     def open_folder(self):
         subprocess.Popen(["xdg-open", self.config["LOCAL_DIR"]])
 
@@ -377,5 +394,17 @@ class BoxTray:
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
+
+    # Primer arranque: todavía no existe box-tray.conf. Se muestra el
+    # asistente antes de crear el ícono de bandeja; si el usuario lo
+    # cierra sin terminar, no hay nada que sincronizar y se sale.
+    if not os.path.exists(CONFIG_FILE):
+        wizard = SetupWizard(
+            APP_DIR, CFG_DIR, CONFIG_FILE, INTERVAL_FILE, AUTOSTART_DIR,
+            INTERVALS, DEFAULT_INTERVAL,
+        )
+        if wizard.exec_() != SetupWizard.Accepted:
+            sys.exit(0)
+
     tray = BoxTray(app)
     sys.exit(app.exec_())

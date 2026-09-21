@@ -22,14 +22,28 @@ El instalador:
 
 1. Instala las dependencias que falten (`python3-pyqt5`, `libnotify-bin`, etc.).
 2. Instala rclone desde rclone.org si no está o si es muy antiguo (se necesita 1.66 o superior; el de los repos de Debian no sirve).
-3. Te pregunta el nombre del remoto y la carpeta local.
-4. Te pide iniciar sesión en Box (ver abajo).
-5. Hace la primera sincronización (`--resync`).
-6. Deja Box Tray arrancando solo al iniciar sesión.
+3. Crea el acceso en el menú de aplicaciones.
+4. Te pregunta si quieres iniciar Box Tray. La primera vez que se abre aparece
+   una ventana de configuración (ver abajo).
 
-## Inicio de sesión
+## Primera configuración
 
-No hay que escribir usuario ni contraseña en la terminal. El instalador abre el navegador en la página oficial de Box; entras a tu cuenta y presionas **Otorgar acceso a Box**. rclone guarda el acceso en `~/.config/rclone/rclone.conf`.
+Al abrir Box Tray por primera vez aparece una ventana donde eliges:
+
+- **Nombre del remoto y carpeta local** a sincronizar.
+- **Iniciar sesión en Box**: se abre una terminal con el navegador; entras a tu
+  cuenta y presionas **Otorgar acceso a Box**. No hay que escribir usuario ni
+  contraseña en ningún lado de Box Tray. rclone guarda el acceso en
+  `~/.config/rclone/rclone.conf`.
+- **Modo de sincronización**: por ahora solo está disponible "Sincronizar
+  todo" (`rclone bisync`, baja y sube todo). "Streaming" (bajar cada archivo
+  solo al abrirlo) va a llegar más adelante.
+- **Intervalo de sincronización automática**.
+- **Inicio automático al iniciar sesión** en el sistema (se puede cambiar
+  después desde el menú del ícono).
+
+Al terminar, se ofrece hacer la primera sincronización (`--resync`, obligatoria
+la primera vez en cada equipo).
 
 Si Box vence el acceso (pasa si el equipo queda más de 60 días sin sincronizar), usa **Volver a iniciar sesión en Box** en el menú del ícono.
 

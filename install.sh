@@ -17,7 +17,6 @@ APP_DIR="$HOME/.local/share/box-tray"
 BIN_DIR="$HOME/.local/bin"
 CFG_DIR="$HOME/.config/box-tray"
 CONFIG_FILE="$CFG_DIR/box-tray.conf"
-AUTOSTART_DIR="$HOME/.config/autostart"
 APPS_DIR="$HOME/.local/share/applications"
 
 RCLONE_MIN_VERSION="1.66.0"     # necesaria para --conflict-resolve y --recover
@@ -117,9 +116,10 @@ info "Instalando archivos en $APP_DIR ..."
 pkill -f "box-tray/box-tray.py" 2> /dev/null || true
 
 mkdir -p "$APP_DIR/icons" "$BIN_DIR"
-install -m 755 "$REPO_DIR/src/boxsync.sh"  "$APP_DIR/boxsync.sh"
-install -m 755 "$REPO_DIR/src/box-tray.py" "$APP_DIR/box-tray.py"
-install -m 644 "$REPO_DIR"/icons/*.svg     "$APP_DIR/icons/"
+install -m 755 "$REPO_DIR/src/boxsync.sh"     "$APP_DIR/boxsync.sh"
+install -m 755 "$REPO_DIR/src/box-tray.py"    "$APP_DIR/box-tray.py"
+install -m 644 "$REPO_DIR/src/setup_wizard.py" "$APP_DIR/setup_wizard.py"
+install -m 644 "$REPO_DIR"/icons/*.svg        "$APP_DIR/icons/"
 
 # Comandos cortos: 'boxsync' y 'box-tray'
 ln -sf "$APP_DIR/boxsync.sh"  "$BIN_DIR/boxsync"
@@ -138,84 +138,17 @@ if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
 fi
 
 
-# ---------- 4. Configuración ----------
-info "Configuración..."
+# ---------- 4. Menú de aplicaciones ----------
+# El acceso directo de autostart (arranque automático) ya NO se crea acá:
+# lo maneja el propio Box Tray (asistente de primera vez + ítem del menú
+# "Iniciar automáticamente al iniciar sesión"), para que se pueda prender
+# o apagar sin reinstalar.
+info "Creando acceso en el menú de aplicaciones..."
 
-if [ -f "$CONFIG_FILE" ]; then
-  ok "Ya existe $CONFIG_FILE (no se modifica)."
-else
-  read -r -p "   Nombre del remoto de rclone [box]: " REMOTE_NAME
-  REMOTE_NAME="${REMOTE_NAME:-box}"
+mkdir -p "$APPS_DIR"
 
-  read -r -p "   Carpeta local a sincronizar [$HOME/Box]: " LOCAL_DIR
-  LOCAL_DIR="${LOCAL_DIR:-$HOME/Box}"
-  LOCAL_DIR="${LOCAL_DIR/#\~/$HOME}"      # por si escribes ~/algo
-
-  mkdir -p "$CFG_DIR"
-  cat > "$CONFIG_FILE" << EOF
-# Configuración de box-tray (la leen boxsync.sh y box-tray.py)
-
-# Remoto de rclone (con los dos puntos al final)
-REMOTE="${REMOTE_NAME}:"
-
-# Carpeta local que se sincroniza
-LOCAL_DIR="${LOCAL_DIR}"
-
-# Color de los íconos: "#ffffff" para panel oscuro, "#000000" para panel claro
-ICON_COLOR="#ffffff"
-EOF
-  ok "Configuración creada en $CONFIG_FILE"
-fi
-
-# shellcheck source=/dev/null
-source "$CONFIG_FILE"
-mkdir -p "$LOCAL_DIR"
-
-
-# ---------- 5. Remoto de rclone ----------
-info "Revisando el remoto '$REMOTE' en rclone..."
-
-REMOTE_NAME="${REMOTE%%:*}"
-
-remote_exists() {
-  rclone listremotes 2> /dev/null | grep -qx "${REMOTE_NAME}:"
-}
-
-if ! remote_exists; then
-  warn "Todavía no has iniciado sesión en Box en este equipo."
-  echo "   Se abrirá el navegador: entra a tu cuenta de Box y presiona"
-  echo "   'Otorgar acceso a Box'. Luego vuelve a esta terminal."
-  if ask "¿Iniciar sesión ahora?"; then
-    rclone config create "$REMOTE_NAME" box || warn "No se completó el inicio de sesión."
-  fi
-fi
-
-REMOTE_READY=false
-if remote_exists; then
-  REMOTE_READY=true
-  ok "Remoto '${REMOTE_NAME}' encontrado."
-else
-  warn "Sin remoto no se puede sincronizar. Configúralo y vuelve a ejecutar ./install.sh"
-fi
-
-
-# ---------- 6. Primera sincronización ----------
-if [ "$REMOTE_READY" = true ]; then
-  info "Primera sincronización"
-  echo "   La primera vez en cada equipo hay que hacer un --resync."
-  echo "   No borra nada: junta lo que haya en $LOCAL_DIR y en Box."
-  if ask "¿Hacer el resync ahora? (puede tardar)"; then
-    "$APP_DIR/boxsync.sh" --resync --force || warn "El resync terminó con errores. Revisa el log con: box-tray → Ver registro."
-  fi
-fi
-
-
-# ---------- 7. Menú de aplicaciones e inicio automático ----------
-info "Creando accesos..."
-
-mkdir -p "$AUTOSTART_DIR" "$APPS_DIR"
-
-DESKTOP_ENTRY="[Desktop Entry]
+cat > "$APPS_DIR/box-tray.desktop" << EOF
+[Desktop Entry]
 Type=Application
 Name=Box Tray
 Comment=Sincronización de Box con rclone
@@ -223,15 +156,22 @@ Exec=$APP_DIR/box-tray.py
 Icon=$APP_DIR/icons/synced.svg
 Terminal=false
 Categories=Utility;Network;
-X-GNOME-Autostart-enabled=true"
-
-echo "$DESKTOP_ENTRY" > "$APPS_DIR/box-tray.desktop"
-echo "$DESKTOP_ENTRY" > "$AUTOSTART_DIR/box-tray.desktop"
-ok "Box Tray arrancará solo al iniciar sesión."
+EOF
+ok "Acceso creado."
 
 
-# ---------- 8. Iniciar ----------
-if [ "$REMOTE_READY" = true ] && ask "¿Iniciar Box Tray ahora?"; then
+# ---------- 5. Iniciar ----------
+info "Configuración inicial"
+
+if [ -f "$CONFIG_FILE" ]; then
+  ok "Ya existe $CONFIG_FILE: se usa la configuración actual."
+else
+  echo "   La primera vez que abras Box Tray va a aparecer una ventana"
+  echo "   para elegir el remoto, la carpeta local, iniciar sesión en Box,"
+  echo "   el intervalo de sincronización y si arranca solo con el sistema."
+fi
+
+if ask "¿Iniciar Box Tray ahora?"; then
   nohup "$APP_DIR/box-tray.py" > /dev/null 2>&1 &
   disown
   ok "Box Tray iniciado."

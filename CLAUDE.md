@@ -8,8 +8,13 @@ Sincronización bidireccional de Box.com en Linux (Debian + KDE Plasma) usando
 - `src/boxsync.sh` → hace la sincronización (lock huérfano, excludes, logs, estado).
 - `src/box-tray.py` → ícono de bandeja. Decide CUÁNDO sincronizar y muestra el estado.
   Toda la lógica de sync vive en `boxsync.sh`; el tray solo lo llama.
+- `src/setup_wizard.py` → ventana de primera configuración (login, carpeta,
+  intervalo, modo de sync, autostart). box-tray.py la muestra solo si no existe
+  `box-tray.conf`. También tiene las funciones de autostart que usa el menú.
 - `icons/*.svg` → íconos con `currentColor` (el tray lo reemplaza por `ICON_COLOR`).
 - `install.sh` / `uninstall.sh` → instalación en la carpeta del usuario, sin root.
+  El login, la carpeta a sincronizar y el primer resync quedaron en el asistente
+  gráfico (`setup_wizard.py`), no en install.sh.
 
 ## Rutas en el sistema
 
