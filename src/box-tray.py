@@ -15,7 +15,7 @@ import subprocess
 import sys
 
 from PyQt5.QtCore import QByteArray, QProcess, Qt, QTimer
-from PyQt5.QtGui import QIcon, QPainter, QPixmap
+from PyQt5.QtGui import QIcon, QPainter, QPalette, QPixmap
 from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtWidgets import (
     QAction,
@@ -79,7 +79,9 @@ def read_config():
     config = {
         "REMOTE": "box:",
         "LOCAL_DIR": "$HOME/Box",
-        "ICON_COLOR": "#ffffff",
+        # "auto" = detectar solo según el tema del sistema (ver detect_icon_color).
+        # También se puede fijar a mano en box-tray.conf, ej: ICON_COLOR="#ffffff".
+        "ICON_COLOR": "auto",
     }
 
     if os.path.exists(CONFIG_FILE):
@@ -165,6 +167,20 @@ def render_icon(svg_path, color):
     return icon
 
 
+def detect_icon_color(app):
+    """
+    Blanco o negro según si el tema del sistema es oscuro o claro.
+    Mira el color de fondo ("Window") de la paleta de Qt en vez de leer
+    configuración específica de KDE: Qt ya sigue el tema del escritorio
+    (KDE, GNOME, etc.), así que esto se actualiza solo si el usuario
+    cambia de tema, sin código por escritorio.
+    """
+    bg = app.palette().color(QPalette.Window)
+    # Percepción de brillo (luminancia relativa, fórmula estándar YIQ)
+    brightness = (bg.red() * 299 + bg.green() * 587 + bg.blue() * 114) / 1000
+    return "#000000" if brightness > 128 else "#ffffff"
+
+
 # ---------- APLICACIÓN ----------
 class BoxTray:
 
@@ -173,6 +189,7 @@ class BoxTray:
         self.config = read_config()
         self.sync_process = None
         self.current_status = None
+        self.current_icon_color = None
 
         os.makedirs(CFG_DIR, exist_ok=True)
         if not os.path.exists(INTERVAL_FILE):
@@ -378,16 +395,24 @@ class BoxTray:
 
     # ----- Estado -----
 
+    def resolve_icon_color(self):
+        if self.config["ICON_COLOR"] == "auto":
+            return detect_icon_color(self.app)
+        return self.config["ICON_COLOR"]
+
     def update_status(self):
         status = "paused" if is_paused() else read_status()
+        color = self.resolve_icon_color()
 
-        # Solo se redibuja el ícono si el estado cambió
-        if status == self.current_status:
+        # Solo se redibuja el ícono si cambió el estado o el color (este
+        # último cambia si el usuario pasa de tema claro a oscuro o viceversa)
+        if status == self.current_status and color == self.current_icon_color:
             return
         self.current_status = status
+        self.current_icon_color = color
 
         icon_file = os.path.join(ICON_DIR, ICON_FILES.get(status, "synced.svg"))
-        self.tray.setIcon(render_icon(icon_file, self.config["ICON_COLOR"]))
+        self.tray.setIcon(render_icon(icon_file, color))
         self.tray.setToolTip(f"Box — {STATUS_LABELS.get(status, status)}")
 
 

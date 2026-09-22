@@ -306,8 +306,9 @@ class SetupWizard(QDialog):
                 f'REMOTE="{remote}:"\n\n'
                 "# Carpeta local que se sincroniza\n"
                 f'LOCAL_DIR="{local_dir}"\n\n'
-                '# Color de los íconos: "#ffffff" para panel oscuro, "#000000" para panel claro\n'
-                'ICON_COLOR="#ffffff"\n'
+                '# Color de los íconos: "auto" los ajusta solo según el tema del sistema\n'
+                '# (claro/oscuro). Para fijarlo a mano: "#ffffff" o "#000000".\n'
+                'ICON_COLOR="auto"\n'
             )
 
     def write_interval(self, seconds):
