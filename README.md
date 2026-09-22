@@ -18,13 +18,19 @@ cd boxtray
 ./install.sh
 ```
 
-El instalador:
+`./install.sh` solo asegura que exista Python3 + PyQt5 (lo mínimo para poder
+mostrar una ventana) y de ahí en adelante todo es gráfico: se abre el
+instalador (`src/install_gui.py`), que:
 
-1. Instala las dependencias que falten (`python3-pyqt5`, `libnotify-bin`, etc.).
-2. Instala rclone desde rclone.org si no está o si es muy antiguo (se necesita 1.66 o superior; el de los repos de Debian no sirve).
-3. Crea el acceso en el menú de aplicaciones.
-4. Te pregunta si quieres iniciar Box Tray. La primera vez que se abre aparece
-   una ventana de configuración (ver abajo).
+1. Instala rclone desde rclone.org si no está o si es muy antiguo (se necesita
+   1.66 o superior; el de los repos de Debian no sirve).
+2. Instala el resto de las dependencias que falten (`libnotify-bin`, etc.).
+3. Copia los archivos y crea el acceso en el menú de aplicaciones.
+4. Deja Box Tray corriendo. La primera vez que se abre aparece una ventana de
+   configuración (ver abajo).
+
+Cuando hace falta instalar algo como administrador, la clave se pide en un
+**diálogo gráfico** del sistema (vía `pkexec`), nunca escrita en la terminal.
 
 ## Primera configuración
 

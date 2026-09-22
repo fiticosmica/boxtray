@@ -11,10 +11,14 @@ Sincronización bidireccional de Box.com en Linux (Debian + KDE Plasma) usando
 - `src/setup_wizard.py` → ventana de primera configuración (login, carpeta,
   intervalo, modo de sync, autostart). box-tray.py la muestra solo si no existe
   `box-tray.conf`. También tiene las funciones de autostart que usa el menú.
+- `src/install_gui.py` → instalador gráfico: rclone, dependencias del sistema,
+  copia de archivos y accesos directos. Lo lanza `install.sh`.
 - `icons/*.svg` → íconos con `currentColor` (el tray lo reemplaza por `ICON_COLOR`).
-- `install.sh` / `uninstall.sh` → instalación en la carpeta del usuario, sin root.
-  El login, la carpeta a sincronizar y el primer resync quedaron en el asistente
-  gráfico (`setup_wizard.py`), no en install.sh.
+- `install.sh` → bootstrap mínimo (asegura Python3 + PyQt5, con `pkexec` si
+  hace falta instalarlos) y lanza `install_gui.py`. Nada de prompts por
+  consola: eso vive en `install_gui.py` (instalación) y `setup_wizard.py`
+  (login, carpeta, intervalo).
+- `uninstall.sh` → instalación en la carpeta del usuario, sin root.
 
 ## Rutas en el sistema
 

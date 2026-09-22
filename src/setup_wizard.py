@@ -26,7 +26,7 @@ automático después de la instalación.
 import os
 import subprocess
 
-from PyQt5.QtCore import QProcess, QTimer
+from PyQt5.QtCore import Qt, QProcess, QTimer
 from PyQt5.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -41,6 +41,9 @@ from PyQt5.QtWidgets import (
     QRadioButton,
     QVBoxLayout,
 )
+
+
+AUTHOR_URL = "https://github.com/fiticosmica"
 
 
 # ---------- ACCESO DIRECTO DE AUTOSTART ----------
@@ -196,6 +199,13 @@ class SetupWizard(QDialog):
         buttons_row.addWidget(self.finish_btn)
         layout.addLayout(buttons_row)
 
+        # ---------- Autor ----------
+        author_label = QLabel(f'<a href="{AUTHOR_URL}">{AUTHOR_URL}</a>')
+        author_label.setOpenExternalLinks(True)
+        author_label.setAlignment(Qt.AlignCenter)
+        author_label.setStyleSheet("color: gray; font-size: 11px;")
+        layout.addWidget(author_label)
+
     # ----- Conexión a Box -----
 
     def browse_folder(self):
@@ -226,6 +236,30 @@ class SetupWizard(QDialog):
                 "No encontré una terminal",
                 "Ejecuta esto a mano en una terminal:\n" + " ".join(command),
             )
+
+    # ----- Evitar cerrar la ventana a medio resync -----
+    # Si se cierra (botón X, Alt+F4 o Escape) mientras el primer --resync
+    # sigue corriendo, se mata a rclone a medio camino. box-tray.conf ya
+    # quedó guardado en ese punto, pero es mejor no interrumpir el resync.
+
+    def is_syncing(self):
+        return self.resync_process is not None and self.resync_process.state() != QProcess.NotRunning
+
+    def closeEvent(self, event):
+        if self.is_syncing():
+            QMessageBox.information(
+                self,
+                "Sincronizando",
+                "La primera sincronización sigue en curso. Espera a que termine.",
+            )
+            event.ignore()
+        else:
+            event.accept()
+
+    def reject(self):
+        if self.is_syncing():
+            return
+        super().reject()
 
     def check_connection(self):
         self.remote_connected = self.remote_exists()
@@ -283,7 +317,7 @@ class SetupWizard(QDialog):
     def run_first_sync(self):
         self.finish_btn.setEnabled(False)
         self.login_btn.setEnabled(False)
-        self.status_label.setText("Sincronizando por primera vez...")
+        self.status_label.setText("Sincronizando por primera vez... no cierres esta ventana.")
 
         # QProcess (no bloquea la ventana) en vez de subprocess.run: el
         # resync puede tardar y no queremos congelar el asistente.

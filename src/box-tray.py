@@ -396,14 +396,18 @@ if __name__ == "__main__":
     app.setQuitOnLastWindowClosed(False)
 
     # Primer arranque: todavía no existe box-tray.conf. Se muestra el
-    # asistente antes de crear el ícono de bandeja; si el usuario lo
-    # cierra sin terminar, no hay nada que sincronizar y se sale.
+    # asistente antes de crear el ícono de bandeja. Se revisa si
+    # box-tray.conf quedó guardado (no si el diálogo se "aceptó"): el
+    # asistente lo escribe apenas se presiona "Finalizar", antes de la
+    # primera sincronización, así que aunque se cierre la ventana después
+    # de eso la configuración ya quedó lista y no hay que pedirla de nuevo.
     if not os.path.exists(CONFIG_FILE):
         wizard = SetupWizard(
             APP_DIR, CFG_DIR, CONFIG_FILE, INTERVAL_FILE, AUTOSTART_DIR,
             INTERVALS, DEFAULT_INTERVAL,
         )
-        if wizard.exec_() != SetupWizard.Accepted:
+        wizard.exec_()
+        if not os.path.exists(CONFIG_FILE):
             sys.exit(0)
 
     tray = BoxTray(app)

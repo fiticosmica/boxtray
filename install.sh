@@ -1,180 +1,38 @@
 #!/bin/bash
 #
-# install.sh — Instalador de box-tray
+# install.sh — Arranca el instalador gráfico de Box Tray
 #
-# Instala todo en la carpeta del usuario (no necesita root, salvo para
-# instalar dependencias con apt). También sirve para ACTUALIZAR:
-#   git pull && ./install.sh
+# Lo único que hace este script es asegurarse de que exista Python3 +
+# PyQt5: lo mínimo indispensable para poder mostrar una ventana. Si
+# falta, se instala con pkexec, que pide la clave de administrador en un
+# diálogo GRÁFICO del sistema (no hay que escribirla en la terminal).
+#
+# De ahí para adelante todo el instalador es ventanas: ver
+# src/install_gui.py, que revisa/instala rclone y el resto de las
+# dependencias, copia los archivos y deja Box Tray corriendo.
+#
+# También sirve para ACTUALIZAR: git pull && ./install.sh
 #
 
 set -euo pipefail
 
-
-# ---------- RUTAS ----------
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-APP_DIR="$HOME/.local/share/box-tray"
-BIN_DIR="$HOME/.local/bin"
-CFG_DIR="$HOME/.config/box-tray"
-CONFIG_FILE="$CFG_DIR/box-tray.conf"
-APPS_DIR="$HOME/.local/share/applications"
-
-RCLONE_MIN_VERSION="1.66.0"     # necesaria para --conflict-resolve y --recover
-
-
-# ---------- UTILIDADES ----------
-info() { echo -e "\n\e[1;34m==>\e[0m $1"; }
-ok()   { echo -e " \e[1;32m✓\e[0m $1"; }
-warn() { echo -e " \e[1;33m!\e[0m $1"; }
-
-# ask "pregunta" -> verdadero si responde s/S o solo Enter
-ask() {
-  local answer
-  read -r -p "   $1 [S/n] " answer
-  [[ -z "$answer" || "$answer" =~ ^[sSyY]$ ]]
-}
-
-# Versión instalada de rclone, o 0.0.0 si no está
-rclone_version() {
-  rclone version 2>/dev/null | head -n1 | grep -oP 'v\K[0-9]+\.[0-9]+\.[0-9]+' || echo "0.0.0"
-}
-
-# version_ok ACTUAL MINIMA -> verdadero si ACTUAL >= MINIMA
-version_ok() {
-  local lowest
-  lowest="$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)"
-  [ "$lowest" = "$2" ]
-}
-
 
 if [ "$EUID" -eq 0 ]; then
   echo "No ejecutes el instalador como root: se instala en tu usuario."
   exit 1
 fi
 
-
-# ---------- 1. Dependencias del sistema ----------
-info "Revisando dependencias..."
-
-MISSING_PKGS=()
-command -v python3     > /dev/null || MISSING_PKGS+=(python3)
-python3 -c "import PyQt5.QtSvg" 2> /dev/null || MISSING_PKGS+=(python3-pyqt5 python3-pyqt5.qtsvg)
-command -v notify-send > /dev/null || MISSING_PKGS+=(libnotify-bin)
-command -v xdg-open    > /dev/null || MISSING_PKGS+=(xdg-utils)
-command -v curl        > /dev/null || MISSING_PKGS+=(curl)
-
-if [ ${#MISSING_PKGS[@]} -gt 0 ]; then
-  warn "Faltan paquetes: ${MISSING_PKGS[*]}"
-  if ask "¿Instalarlos con apt? (pide sudo)"; then
-    sudo apt update
-    sudo apt install -y "${MISSING_PKGS[@]}"
-  else
-    echo "   Instálalos a mano y vuelve a ejecutar ./install.sh"
-    exit 1
-  fi
-fi
-ok "Dependencias del sistema listas."
-
-
-# ---------- 2. rclone ----------
-info "Revisando rclone..."
-
-CURRENT_VERSION="$(rclone_version)"
-
-if ! version_ok "$CURRENT_VERSION" "$RCLONE_MIN_VERSION"; then
-  if [ "$CURRENT_VERSION" = "0.0.0" ]; then
-    warn "rclone no está instalado."
-  else
-    warn "rclone $CURRENT_VERSION es muy antiguo (se necesita $RCLONE_MIN_VERSION o superior)."
-  fi
-
-  if ask "¿Instalar la última versión desde rclone.org? (pide sudo)"; then
-    # La versión de apt es vieja; se quita para que un 'apt upgrade' no la pise.
-    if dpkg -s rclone &> /dev/null; then
-      sudo apt remove -y rclone
-    fi
-    # El instalador oficial sale con código 3 si ya está al día; no es error.
-    curl -fsSL https://rclone.org/install.sh | sudo bash || true
-  else
-    echo "   Instala rclone $RCLONE_MIN_VERSION o superior y vuelve a ejecutar ./install.sh"
+if ! python3 -c "import PyQt5.QtSvg" 2> /dev/null; then
+  if ! command -v pkexec &> /dev/null; then
+    echo "Necesito 'pkexec' (paquete policykit-1) para instalar PyQt5 sin pedir la"
+    echo "clave por terminal. Instálalo con: sudo apt install policykit-1"
+    echo "y vuelve a correr ./install.sh"
     exit 1
   fi
 
-  CURRENT_VERSION="$(rclone_version)"
-  if ! version_ok "$CURRENT_VERSION" "$RCLONE_MIN_VERSION"; then
-    echo "   No se pudo instalar una versión compatible de rclone."
-    exit 1
-  fi
-fi
-ok "rclone $CURRENT_VERSION"
-
-
-# ---------- 3. Copiar archivos ----------
-info "Instalando archivos en $APP_DIR ..."
-
-# Si el tray ya estaba corriendo (actualización), se cierra antes de copiar
-pkill -f "box-tray/box-tray.py" 2> /dev/null || true
-
-mkdir -p "$APP_DIR/icons" "$BIN_DIR"
-install -m 755 "$REPO_DIR/src/boxsync.sh"     "$APP_DIR/boxsync.sh"
-install -m 755 "$REPO_DIR/src/box-tray.py"    "$APP_DIR/box-tray.py"
-install -m 644 "$REPO_DIR/src/setup_wizard.py" "$APP_DIR/setup_wizard.py"
-install -m 644 "$REPO_DIR"/icons/*.svg        "$APP_DIR/icons/"
-
-# Comandos cortos: 'boxsync' y 'box-tray'
-ln -sf "$APP_DIR/boxsync.sh"  "$BIN_DIR/boxsync"
-ln -sf "$APP_DIR/box-tray.py" "$BIN_DIR/box-tray"
-# URL del proyecto, tomada del 'git remote' del repo clonado.
-# Convierte git@github.com:usuario/repo.git -> https://github.com/usuario/repo
-REPO_URL="$(git -C "$REPO_DIR" remote get-url origin 2> /dev/null || true)"
-REPO_URL="${REPO_URL%.git}"
-REPO_URL="${REPO_URL/git@github.com:/https://github.com/}"
-echo -n "$REPO_URL" > "$APP_DIR/repo-url"
-
-ok "Archivos instalados."
-
-if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
-  warn "$BIN_DIR no está en tu PATH. Cierra sesión y vuelve a entrar para usar 'boxsync' directo."
+  echo "Instalando Python3 y PyQt5 (te va a pedir la clave en una ventana)..."
+  pkexec bash -c "apt-get update && apt-get install -y python3 python3-pyqt5 python3-pyqt5.qtsvg"
 fi
 
-
-# ---------- 4. Menú de aplicaciones ----------
-# El acceso directo de autostart (arranque automático) ya NO se crea acá:
-# lo maneja el propio Box Tray (asistente de primera vez + ítem del menú
-# "Iniciar automáticamente al iniciar sesión"), para que se pueda prender
-# o apagar sin reinstalar.
-info "Creando acceso en el menú de aplicaciones..."
-
-mkdir -p "$APPS_DIR"
-
-cat > "$APPS_DIR/box-tray.desktop" << EOF
-[Desktop Entry]
-Type=Application
-Name=Box Tray
-Comment=Sincronización de Box con rclone
-Exec=$APP_DIR/box-tray.py
-Icon=$APP_DIR/icons/synced.svg
-Terminal=false
-Categories=Utility;Network;
-EOF
-ok "Acceso creado."
-
-
-# ---------- 5. Iniciar ----------
-info "Configuración inicial"
-
-if [ -f "$CONFIG_FILE" ]; then
-  ok "Ya existe $CONFIG_FILE: se usa la configuración actual."
-else
-  echo "   La primera vez que abras Box Tray va a aparecer una ventana"
-  echo "   para elegir el remoto, la carpeta local, iniciar sesión en Box,"
-  echo "   el intervalo de sincronización y si arranca solo con el sistema."
-fi
-
-if ask "¿Iniciar Box Tray ahora?"; then
-  nohup "$APP_DIR/box-tray.py" > /dev/null 2>&1 &
-  disown
-  ok "Box Tray iniciado."
-fi
-
-echo -e "\n\e[1;32mListo.\e[0m"
+exec python3 "$REPO_DIR/src/install_gui.py" "$REPO_DIR"
