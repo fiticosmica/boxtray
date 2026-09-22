@@ -32,7 +32,10 @@ if ! python3 -c "import PyQt5.QtSvg" 2> /dev/null; then
   fi
 
   echo "Instalando Python3 y PyQt5 (te va a pedir la clave en una ventana)..."
-  pkexec bash -c "apt-get update && apt-get install -y python3 python3-pyqt5 python3-pyqt5.qtsvg"
+  # "apt-get update" puede fallar por un repositorio suelto (ej: cdrom:// de
+  # una instalación desde DVD) sin que los demás repos estén mal; se tolera
+  # ese error y se intenta instalar igual con los repos que sí respondieron.
+  pkexec bash -c "apt-get update; apt-get install -y python3 python3-pyqt5 python3-pyqt5.qtsvg"
 fi
 
 exec python3 "$REPO_DIR/src/install_gui.py" "$REPO_DIR"

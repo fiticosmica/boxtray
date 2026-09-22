@@ -193,9 +193,12 @@ class Installer(QWidget):
             self.log.appendPlainText("Dependencias del sistema listas.")
             return True
 
+        # "apt-get update" puede fallar por un repositorio suelto (ej: cdrom://
+        # de una instalación desde DVD) sin que los demás repos estén mal; se
+        # tolera ese error y se intenta instalar igual con los que respondieron.
         ok = self.run_privileged(
             f"Instalando: {', '.join(missing)}...",
-            f"apt-get update && apt-get install -y {' '.join(missing)}",
+            f"apt-get update; apt-get install -y {' '.join(missing)}",
         )
         if not ok:
             self.fail("No se pudieron instalar las dependencias del sistema.")
